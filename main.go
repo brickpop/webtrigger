@@ -4,27 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/pkg/errors"
-)
-
-// JSONResponse is the schema of the status requests
-type JSONResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-}
-
-const (
-	// StatusUnstarted is the default trigger state
-	StatusUnstarted = iota
-	// StatusRunnung indicated a trigger in progress
-	StatusRunnung = iota
-	// StatusDone indicates a successfully completed trigger
-	StatusDone = iota
-	// StatusFailed indicates that the last execution failed
-	StatusFailed = iota
 )
 
 var config Config
@@ -57,7 +42,7 @@ func main() {
 	})
 
 	app.Get("/:triggerID", handleGetStatus)
-	app.Post("/:triggerID", handleRunTrigger)
+	app.Post("/:triggerID", handlespawnTriggerCommand)
 	app.Use(handleNotFound)
 
 	addr := fmt.Sprintf(":%d", config.Port)
@@ -80,36 +65,32 @@ func handleGetStatus(ctx *fiber.Ctx) error {
 	// FOUND
 	log.Printf("[GET] %s status\n", triggerID)
 
-	var response JSONResponse
-
 	switch trigger.Status {
 	case StatusUnstarted:
-		response = JSONResponse{ID: triggerID, Status: "unstarted"}
-		break
-	case StatusRunnung:
-		response = JSONResponse{ID: triggerID, Status: "running"}
-		break
+	case StatusRunning:
 	case StatusDone:
-		response = JSONResponse{ID: triggerID, Status: "done"}
-		break
 	case StatusFailed:
-		response = JSONResponse{ID: triggerID, Status: "failed"}
-		break
 
 	default:
 		ctx.Status(fiber.StatusInternalServerError)
 		return ctx.SendString(fmt.Sprintf("[GET] Internal server error: Unknown trigger status %d", trigger.Status))
 	}
 
+	type JSONResponse struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	response := JSONResponse{ID: triggerID, Status: trigger.Status.String()}
+
 	return ctx.JSON(response)
 }
 
-// handleRunTrigger handles the request to run a certain trigger
-func handleRunTrigger(ctx *fiber.Ctx) error {
+// handlespawnTriggerCommand handles the request to run a certain trigger
+func handlespawnTriggerCommand(ctx *fiber.Ctx) error {
 	triggerID := ctx.Params("triggerID")
 	authorizationHeader := ctx.Get("Authorization")
 
-	_, httpStatus, err := findTrigger(triggerID, authorizationHeader)
+	trigger, httpStatus, err := findTrigger(triggerID, authorizationHeader)
 	if err != nil {
 		log.Printf("[POST] %s: %s\n", triggerID, err)
 
@@ -120,20 +101,11 @@ func handleRunTrigger(ctx *fiber.Ctx) error {
 	// FOUND
 	log.Printf("[POST] %s requested\n", triggerID)
 
-	// TODO: Check status + wait for mutex (if needed)
-	// TODO: Detect binary and split from the argument list
-	// TODO: Spawn command
-	// TODO: Pipe output
-
-	// cmd := exec.Command("cat")
-	// in, _ := cmd.StdinPipe()
-	// out, _ := cmd.StdoutPipe()
-	// err, _ := cmd.StderrPipe()
-
-	// cmd := exec.Command("ls")
-	// cmd.Stderr = os.Stderr
-	// cmd.Stdout = os.Stdout
-	// err = cmd.Run()
+	err = spawnTriggerCommand(trigger)
+	if err != nil {
+		ctx.Status(fiber.StatusInternalServerError)
+		return ctx.SendString(fmt.Sprintf("[POST] %s", err))
+	}
 
 	return ctx.SendString("OK")
 }
@@ -155,7 +127,8 @@ func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
 		return nil, fiber.StatusNotAcceptable, errors.Errorf("The authorization header should be in the form \"Bearer <token>\"")
 	}
 
-	for _, trigger := range config.Triggers {
+	for idx := range config.Triggers {
+		trigger := &config.Triggers[idx]
 		if trigger.ID != triggerID {
 			continue
 		}
@@ -164,9 +137,51 @@ func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
 		}
 
 		// OK
-		return &trigger, fiber.StatusOK, nil
+		return trigger, fiber.StatusOK, nil
 	}
 	return nil, fiber.StatusNotFound, errors.Errorf("Trigger not found: %s", triggerID)
+}
+
+func spawnTriggerCommand(trigger *Trigger) error {
+	// Check status
+	if trigger.Status == StatusRunning {
+		if trigger.WaitGroup == nil {
+			log.Println("[RUNNER] Error: The trigger is running but has a nil waitgroup")
+			return errors.Errorf("Internal error")
+		}
+
+		// Wait for ongoing processes
+		log.Printf("[RUNNER] %s waiting for an ongoing execution", trigger.ID)
+		trigger.WaitGroup.Wait()
+	}
+
+	trigger.WaitGroup = &sync.WaitGroup{}
+	trigger.WaitGroup.Add(1)
+	defer trigger.WaitGroup.Done()
+
+	// TODO: Detect binary and split from the argument list
+	// TODO: Run command instead of a script
+
+	cmd := exec.Command(trigger.Script)
+
+	// Pipe output
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+
+	// Spawn command
+	log.Printf("[RUNNER] Starting %s ", trigger.ID)
+	trigger.Status = StatusRunning
+
+	err := cmd.Run()
+	if err != nil {
+		log.Printf("[RUNNER] Failed: %s ", trigger.ID)
+		trigger.Status = StatusFailed
+	} else {
+		log.Printf("[RUNNER] Done: %s ", trigger.ID)
+		trigger.Status = StatusDone
+	}
+
+	return err
 }
 
 func showUsage() {

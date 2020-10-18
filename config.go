@@ -5,6 +5,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"sync"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -16,17 +17,36 @@ const DefaultPort = 5000
 
 // Trigger holds the settings of a trigger
 type Trigger struct {
-	ID      string `yaml:"id"`
-	Token   string `yaml:"token"`
-	Script  string `yaml:"script"`
-	Timeout int    `yaml:"timeout"`
-	Status  int
+	ID        string `yaml:"id"`
+	Token     string `yaml:"token"`
+	Script    string `yaml:"script"`
+	Timeout   int    `yaml:"timeout"`
+	Status    TriggerStatus
+	WaitGroup *sync.WaitGroup
 }
 
 // Config holds the trigger definitions
 type Config struct {
 	Port     int       `yaml:"port"`
 	Triggers []Trigger `yaml:"triggers"`
+}
+
+// TriggerStatus contains the supported trigger statuses
+type TriggerStatus int
+
+const (
+	// StatusUnstarted is the default trigger state
+	StatusUnstarted TriggerStatus = iota
+	// StatusRunning indicated a trigger in progress
+	StatusRunning
+	// StatusDone indicates a successfully completed trigger
+	StatusDone
+	// StatusFailed indicates that the last execution failed
+	StatusFailed
+)
+
+func (d TriggerStatus) String() string {
+	return [...]string{"unstarted", "running", "done", "failed"}[d]
 }
 
 // ReadConfig parses `config.toml` and returns a struct with the desired config
@@ -51,7 +71,7 @@ func ReadConfig(filePath string) (Config, error) {
 		return conf, errors.Errorf("No triggers are defined")
 	}
 
-	err = checkScripts(conf)
+	err = checkConfig(conf)
 	if err != nil {
 		return conf, err
 	}
@@ -59,7 +79,7 @@ func ReadConfig(filePath string) (Config, error) {
 	return conf, nil
 }
 
-func checkScripts(conf Config) error {
+func checkConfig(conf Config) error {
 	var ids []string
 
 	for idx, trigger := range conf.Triggers {
