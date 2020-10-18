@@ -4,11 +4,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/pkg/errors"
 )
 
+type jsonResponse struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+}
+
 var config Config
+var activeTriggers map[string]bool
 
 func main() {
 	// Arguments and parameters
@@ -37,8 +45,8 @@ func main() {
 		return ctx.Next()
 	})
 
-	app.Get("/:serviceID", handleGetStatus)
-	app.Post("/:serviceID", handleTrigger)
+	app.Get("/:triggerID", handleGetStatus)
+	app.Post("/:triggerID", handleRunTrigger)
 	app.Use(handleNotFound)
 
 	addr := fmt.Sprintf(":%d", config.Port)
@@ -47,34 +55,82 @@ func main() {
 
 // handleGetStatus handles the request to run a certain trigger
 func handleGetStatus(ctx *fiber.Ctx) error {
-	// serviceID := ctx.Params("serviceID")
-	// serviceToken := ctx.Params("serviceToken")
-	log.Printf("[GET] Trigger not found: %s\n", ctx.Path())
+	triggerID := ctx.Params("triggerID")
+	authorizationHeader := ctx.Get("Authorization")
 
-	// dynamicLink := MakeEntityLink(serviceID, config)
-	// ctx.Set("Location", dynamicLink)
+	_, httpStatus, err := findTrigger(triggerID, authorizationHeader)
+	if err != nil {
+		log.Printf("[GET] Trigger %s: %s\n", triggerID, err)
 
-	return ctx.SendStatus(fiber.StatusFound) // 302
+		ctx.Status(httpStatus)
+		return ctx.SendString(fmt.Sprintf("%s", err))
+	}
+	if httpStatus == fiber.StatusLocked {
+		log.Printf("[GET] Trigger %s is already running\n", triggerID)
+
+		response := jsonResponse{ID: triggerID, Status: "running"}
+		return ctx.JSON(response)
+	}
+
+	log.Printf("[GET] Trigger %s is not running\n", triggerID)
+
+	response := jsonResponse{ID: triggerID, Status: "unstarted"}
+	return ctx.JSON(response)
 }
 
-// handleTrigger handles the request to run a certain trigger
-func handleTrigger(ctx *fiber.Ctx) error {
-	// serviceID := ctx.Params("serviceID")
+// handleRunTrigger handles the request to run a certain trigger
+func handleRunTrigger(ctx *fiber.Ctx) error {
+	// triggerID := ctx.Params("triggerID")
 	// serviceToken := ctx.Params("serviceToken")
 	log.Printf("[RUN] Trigger not found: %s\n", ctx.Path())
 
-	// dynamicLink := MakeEntityLink(serviceID, config)
-	// ctx.Set("Location", dynamicLink)
+	// cmd := exec.Command("cat")
+	// in, _ := cmd.StdinPipe()
+	// out, _ := cmd.StdoutPipe()
+	// err, _ := cmd.StderrPipe()
+
+	// cmd := exec.Command("ls")
+	// cmd.Stderr = os.Stderr
+	// cmd.Stdout = os.Stdout
+	// err = cmd.Run()
 
 	return ctx.SendString("OK")
 }
 
 // handleNotFound sends an empty 404 response
 func handleNotFound(ctx *fiber.Ctx) error {
-	log.Printf("[ERROR] Trigger not found: %s\n", ctx.Path())
+	log.Printf("[HTTP] Not found %s\n", ctx.Path())
 	return ctx.SendStatus(fiber.StatusNotFound)
 }
 
+// Helpers
+
+func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
+	authorizationItems := strings.Split(authorizationHeader, " ")
+	if len(authorizationItems) != 2 {
+		return nil, fiber.StatusNotAcceptable, errors.Errorf("Invalid authorization header")
+	}
+	if authorizationItems[0] != "Bearer" {
+		return nil, fiber.StatusNotAcceptable, errors.Errorf("The authorization header should be in the form \"Bearer <token>\"")
+	}
+
+	for _, trigger := range config.Triggers {
+		if trigger.ID != triggerID {
+			continue
+		}
+		if trigger.Token != authorizationItems[1] {
+			return nil, fiber.StatusUnauthorized, errors.Errorf("Invalid token")
+		}
+		if activeTriggers[trigger.ID] {
+			return &trigger, fiber.StatusLocked, nil
+		}
+
+		// OK
+		return &trigger, fiber.StatusOK, nil
+	}
+	return nil, fiber.StatusNotFound, errors.Errorf("Trigger not found: %s", triggerID)
+}
+
 func showUsage() {
-	fmt.Println("Usage: webtrigger <config-file>")
+	log.Println("Usage: webtrigger <config-file>")
 }

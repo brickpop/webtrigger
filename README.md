@@ -8,17 +8,17 @@ Copy the binary to a server folder like `/usr/local/bin`.
 
 ### Service definition
 
-Create a config file like the following and adapt it to suit your tasks, tokens and commands.
+Create a config file like the following and adapt it to suit your tasks, tokens and scripts.
 
 ```yaml
 port: 5000
 triggers:
   - id: my-service-prod
     token: my-access-token-1
-    command: /home/brickpop/deploy-prod.sh --param1
+    script: /home/brickpop/deploy-prod.sh
   - id: my-service-dev
     token: my-access-token-2
-    command: /home/brickpop/deploy-dev.sh --param2
+    script: /home/brickpop/deploy-dev.sh
   # ...
 ```
 

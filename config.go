@@ -1,3 +1,5 @@
+// +build linux darwin freebsd netbsd openbsd
+
 package main
 
 import (
@@ -5,6 +7,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v2"
 )
 
@@ -13,9 +16,10 @@ const DefaultPort = 5000
 
 // Trigger holds the settings of a trigger
 type Trigger struct {
-	ID     string `yaml:"id"`
-	Token  string `yaml:"token"`
-	Script string `yaml:"script"`
+	ID      string `yaml:"id"`
+	Token   string `yaml:"token"`
+	Script  string `yaml:"script"`
+	Timeout int    `yaml:"timeout"`
 }
 
 // Config holds the trigger definitions
@@ -84,6 +88,10 @@ func checkScripts(conf Config) error {
 		}
 		if info.IsDir() {
 			return errors.Errorf("[CONFIG] The script path is a directory: %s", trigger.Script)
+		}
+		err = unix.Access(trigger.Script, unix.X_OK)
+		if err != nil {
+			return errors.Errorf("[CONFIG] The script is not executable: %s", trigger.Script)
 		}
 	}
 
