@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/kballard/go-shellquote"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v2"
@@ -19,7 +20,7 @@ const DefaultPort = 5000
 type Trigger struct {
 	ID        string `yaml:"id"`
 	Token     string `yaml:"token"`
-	Script    string `yaml:"script"`
+	Command   string `yaml:"command"`
 	Timeout   int    `yaml:"timeout"`
 	Status    TriggerStatus
 	WaitGroup *sync.WaitGroup
@@ -102,17 +103,22 @@ func checkConfig(conf Config) error {
 			return errors.Errorf("[CONFIG] The token for trigger %s should have at least 6 characters", trigger.ID)
 		}
 
-		// Check script
-		info, err := os.Stat(trigger.Script)
-		if os.IsNotExist(err) {
-			return errors.Errorf("[CONFIG] The script file does not exist: %s", trigger.Script)
-		}
-		if info.IsDir() {
-			return errors.Errorf("[CONFIG] The script path is a directory: %s", trigger.Script)
-		}
-		err = unix.Access(trigger.Script, unix.X_OK)
+		// Check the command
+		commandItems, err := shellquote.Split(trigger.Command)
 		if err != nil {
-			return errors.Errorf("[CONFIG] The script is not executable: %s", trigger.Script)
+			return errors.Errorf("[CONFIG] %s\n%s", err, trigger.Command)
+		}
+
+		executableFile := commandItems[0]
+		info, err := os.Stat(executableFile)
+		if os.IsNotExist(err) {
+			return errors.Errorf("[CONFIG] The script file does not exist: %s", executableFile)
+		} else if info.IsDir() {
+			return errors.Errorf("[CONFIG] The script path is a directory: %s", executableFile)
+		}
+		err = unix.Access(executableFile, unix.X_OK)
+		if err != nil {
+			return errors.Errorf("[CONFIG] The script is not executable: %s", executableFile)
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/kballard/go-shellquote"
 	"github.com/pkg/errors"
 )
 
@@ -121,10 +122,10 @@ func handleNotFound(ctx *fiber.Ctx) error {
 func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
 	authorizationItems := strings.Split(authorizationHeader, " ")
 	if len(authorizationItems) != 2 {
-		return nil, fiber.StatusNotAcceptable, errors.Errorf("Invalid authorization header")
+		return nil, fiber.StatusNotAcceptable, errors.New("Invalid authorization header")
 	}
 	if authorizationItems[0] != "Bearer" {
-		return nil, fiber.StatusNotAcceptable, errors.Errorf("The authorization header should be in the form \"Bearer <token>\"")
+		return nil, fiber.StatusNotAcceptable, errors.New("The authorization header should be in the form \"Bearer <token>\"")
 	}
 
 	for idx := range config.Triggers {
@@ -133,7 +134,7 @@ func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
 			continue
 		}
 		if trigger.Token != authorizationItems[1] {
-			return nil, fiber.StatusUnauthorized, errors.Errorf("Invalid token")
+			return nil, fiber.StatusUnauthorized, errors.New("Invalid token")
 		}
 
 		// OK
@@ -147,7 +148,7 @@ func spawnTriggerCommand(trigger *Trigger) error {
 	if trigger.Status == StatusRunning {
 		if trigger.WaitGroup == nil {
 			log.Println("[RUNNER] Error: The trigger is running but has a nil waitgroup")
-			return errors.Errorf("Internal error")
+			return errors.New("Internal error")
 		}
 
 		// Wait for ongoing processes
@@ -157,12 +158,26 @@ func spawnTriggerCommand(trigger *Trigger) error {
 
 	trigger.WaitGroup = &sync.WaitGroup{}
 	trigger.WaitGroup.Add(1)
-	defer trigger.WaitGroup.Done()
 
-	// TODO: Detect binary and split from the argument list
-	// TODO: Run command instead of a script
+	// Detect binary and split from the argument list
+	commandItems, err := shellquote.Split(trigger.Command)
+	if err != nil {
+		return err
+	}
+	executableFile := commandItems[0]
+	args := commandItems[1:]
 
-	cmd := exec.Command(trigger.Script)
+	// TODO: Handle timeout
+	// https://golang.org/src/os/exec/example_test.go
+	// ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	// defer cancel()
+	//
+	// if err := exec.CommandContext(ctx, "sleep", "5").Run(); err != nil {
+	// 	// This will fail after 100 milliseconds. The 5 second sleep
+	// 	// will be interrupted.
+	// }
+
+	cmd := exec.Command(executableFile, args...)
 
 	// Pipe output
 	cmd.Stderr = os.Stderr
@@ -172,14 +187,18 @@ func spawnTriggerCommand(trigger *Trigger) error {
 	log.Printf("[RUNNER] Starting %s ", trigger.ID)
 	trigger.Status = StatusRunning
 
-	err := cmd.Run()
-	if err != nil {
-		log.Printf("[RUNNER] Failed: %s ", trigger.ID)
-		trigger.Status = StatusFailed
-	} else {
-		log.Printf("[RUNNER] Done: %s ", trigger.ID)
-		trigger.Status = StatusDone
-	}
+	err = cmd.Start()
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			log.Printf("[RUNNER] Failed: %s ", trigger.ID)
+			trigger.Status = StatusFailed
+		} else {
+			log.Printf("[RUNNER] Done: %s ", trigger.ID)
+			trigger.Status = StatusDone
+		}
+		trigger.WaitGroup.Done()
+	}()
 
 	return err
 }

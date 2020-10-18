@@ -1,9 +1,15 @@
 port: 5000
 triggers:
-  - id: my-action-prod
-    token: my-access-token-1
-    script: /home/brickpop/deploy-prod.sh
-    timeout: 600
-  - id: my-action-dev
-    token: my-access-token-2
-    script: /home/brickpop/deploy-prod.sh
+  - id: my-action-list
+    token: my-token-1
+    command: /bin/ls -lhGf /
+  - id: my-action-echo
+    token: my-token-2
+    command: /bin/echo "Hello world"
+  - id: my-action-sleep
+    token: my-token-3
+    command: /bin/sleep 5
+    timeout: 6
+  - id: my-action-fail
+    token: my-token-4
+    command: /usr/bin/false

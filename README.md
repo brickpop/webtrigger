@@ -1,6 +1,6 @@
 # Web Trigger
 
-Web Trigger is a Go service that listens for authenticated requests to trigger server scripts on demand.
+Web Trigger is a Go service that listens for authenticated requests to trigger server commands on demand.
 
 ## Get started
 
@@ -8,17 +8,18 @@ Copy the binary to a server folder like `/usr/local/bin`.
 
 ### Service definition
 
-Create a config file like the following and adapt it to suit your tasks, tokens and scripts.
+Create a config file like the following and adapt it to suit your tasks, tokens and commands.
 
 ```yaml
 port: 5000
 triggers:
   - id: my-action-prod
     token: my-access-token-1
-    script: /home/brickpop/deploy-prod.sh
+    command: /home/brickpop/deploy-prod.sh --param-1
+    timeout: 20 # seconds
   - id: my-action-dev
     token: my-access-token-2
-    script: /home/brickpop/deploy-dev.sh
+    command: /home/brickpop/deploy-dev.sh "CLI arguments go here"
   # ...
 ```
 
@@ -179,3 +180,8 @@ OK
 ```
 
 -->
+
+## TO DO
+
+- [ ] Prevent blocking 3+ requests while still ongoing
+- [ ] Handle timeouts
