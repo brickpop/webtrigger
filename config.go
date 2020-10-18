@@ -55,7 +55,29 @@ func ReadConfig(filePath string) (Config, error) {
 }
 
 func checkScripts(conf Config) error {
-	for _, trigger := range conf.Triggers {
+	var ids []string
+
+	for idx, trigger := range conf.Triggers {
+		// Check name
+		if trigger.ID == "" {
+			return errors.Errorf("[CONFIG] The trigger at index %d has no ID defined", idx)
+		}
+		for _, prevID := range ids {
+			if prevID == trigger.ID {
+				return errors.Errorf("[CONFIG] The trigger %s is defined multiple times", prevID)
+			}
+		}
+		ids = append(ids, trigger.ID)
+
+		// Check token
+		if trigger.Token == "" {
+			return errors.Errorf("[CONFIG] The trigger %s has no token", trigger.ID)
+		}
+		if len(trigger.Token) < 6 {
+			return errors.Errorf("[CONFIG] The token for trigger %s should have at least 6 characters", trigger.ID)
+		}
+
+		// Check script
 		info, err := os.Stat(trigger.Script)
 		if os.IsNotExist(err) {
 			return errors.Errorf("[CONFIG] The script file does not exist: %s", trigger.Script)

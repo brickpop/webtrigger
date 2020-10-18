@@ -42,8 +42,6 @@ func main() {
 	app.Use(handleNotFound)
 
 	addr := fmt.Sprintf(":%d", config.Port)
-	log.Printf("[MAIN] Listening on %s\n", addr)
-
 	log.Fatal(app.Listen(addr))
 }
 
