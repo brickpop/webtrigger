@@ -13,10 +13,10 @@ Create a config file like the following and adapt it to suit your tasks, tokens 
 ```yaml
 port: 5000
 triggers:
-  - id: my-service-prod
+  - id: my-action-prod
     token: my-access-token-1
     script: /home/brickpop/deploy-prod.sh
-  - id: my-service-dev
+  - id: my-action-dev
     token: my-access-token-2
     script: /home/brickpop/deploy-dev.sh
   # ...
@@ -42,17 +42,17 @@ Following the example config from above:
 Trigger a task by performing a `POST` request to its path with the `Authorization` header including the appropriate token.
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-service-prod
+$ curl -X POST -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
 OK
 ```
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer my-access-token-2" http://localhost:5000/my-service-dev
+$ curl -X POST -H "Authorization: Bearer my-access-token-2" http://localhost:5000/my-action-dev
 OK
 ```
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer bad-token" http://localhost:5000/my-service-dev
+$ curl -X POST -H "Authorization: Bearer bad-token" http://localhost:5000/my-action-dev
 Not found
 ```
 
@@ -68,23 +68,23 @@ Not found
 A task can be in 4 different states:
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-service-prod
-{"id":"my-service-prod","status":"unstarted"}
+$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
+{"id":"my-action-prod","status":"unstarted"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-service-prod
-{"id":"my-service-prod","status":"running"}
+$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
+{"id":"my-action-prod","status":"running"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-service-prod
-{"id":"my-service-prod","status":"done"}
+$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
+{"id":"my-action-prod","status":"done"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-service-prod
-{"id":"my-service-prod","status":"failed"}
+$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
+{"id":"my-action-prod","status":"failed"}
 ```
 
 ### Make it persistent
@@ -174,7 +174,7 @@ $ chmod 400 server.key server.cert
 Just tell `curl` to ignore the certificate credentials and you are good to go:
 
 ```sh
-$ curl --insecure -H "Authorization: Bearer my-access-token-1" -X POST https://my-host:5000/my-service-prod
+$ curl --insecure -H "Authorization: Bearer my-access-token-1" -X POST https://my-host:5000/my-action-prod
 OK
 ```
 

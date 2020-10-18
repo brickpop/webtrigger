@@ -20,6 +20,7 @@ type Trigger struct {
 	Token   string `yaml:"token"`
 	Script  string `yaml:"script"`
 	Timeout int    `yaml:"timeout"`
+	Status  int
 }
 
 // Config holds the trigger definitions

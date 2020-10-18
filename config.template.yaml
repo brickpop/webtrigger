@@ -1,9 +1,9 @@
 port: 5000
 triggers:
-  - id: my-service-prod
+  - id: my-action-prod
     token: my-access-token-1
     script: /home/brickpop/deploy-prod.sh
     timeout: 600
-  - id: my-service-dev
+  - id: my-action-dev
     token: my-access-token-2
     script: /home/brickpop/deploy-prod.sh

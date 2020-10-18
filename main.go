@@ -10,13 +10,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-type jsonResponse struct {
+// JSONResponse is the schema of the status requests
+type JSONResponse struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 }
 
+const (
+	// StatusUnstarted is the default trigger state
+	StatusUnstarted = iota
+	// StatusRunnung indicated a trigger in progress
+	StatusRunnung = iota
+	// StatusDone indicates a successfully completed trigger
+	StatusDone = iota
+	// StatusFailed indicates that the last execution failed
+	StatusFailed = iota
+)
+
 var config Config
-var activeTriggers map[string]bool
 
 func main() {
 	// Arguments and parameters
@@ -58,31 +69,61 @@ func handleGetStatus(ctx *fiber.Ctx) error {
 	triggerID := ctx.Params("triggerID")
 	authorizationHeader := ctx.Get("Authorization")
 
-	_, httpStatus, err := findTrigger(triggerID, authorizationHeader)
+	trigger, httpStatus, err := findTrigger(triggerID, authorizationHeader)
 	if err != nil {
-		log.Printf("[GET] Trigger %s: %s\n", triggerID, err)
+		log.Printf("[GET] %s: %s\n", triggerID, err)
 
 		ctx.Status(httpStatus)
 		return ctx.SendString(fmt.Sprintf("%s", err))
 	}
-	if httpStatus == fiber.StatusLocked {
-		log.Printf("[GET] Trigger %s is already running\n", triggerID)
 
-		response := jsonResponse{ID: triggerID, Status: "running"}
-		return ctx.JSON(response)
+	// FOUND
+	log.Printf("[GET] %s status\n", triggerID)
+
+	var response JSONResponse
+
+	switch trigger.Status {
+	case StatusUnstarted:
+		response = JSONResponse{ID: triggerID, Status: "unstarted"}
+		break
+	case StatusRunnung:
+		response = JSONResponse{ID: triggerID, Status: "running"}
+		break
+	case StatusDone:
+		response = JSONResponse{ID: triggerID, Status: "done"}
+		break
+	case StatusFailed:
+		response = JSONResponse{ID: triggerID, Status: "failed"}
+		break
+
+	default:
+		ctx.Status(fiber.StatusInternalServerError)
+		return ctx.SendString(fmt.Sprintf("[GET] Internal server error: Unknown trigger status %d", trigger.Status))
 	}
 
-	log.Printf("[GET] Trigger %s is not running\n", triggerID)
-
-	response := jsonResponse{ID: triggerID, Status: "unstarted"}
 	return ctx.JSON(response)
 }
 
 // handleRunTrigger handles the request to run a certain trigger
 func handleRunTrigger(ctx *fiber.Ctx) error {
-	// triggerID := ctx.Params("triggerID")
-	// serviceToken := ctx.Params("serviceToken")
-	log.Printf("[RUN] Trigger not found: %s\n", ctx.Path())
+	triggerID := ctx.Params("triggerID")
+	authorizationHeader := ctx.Get("Authorization")
+
+	_, httpStatus, err := findTrigger(triggerID, authorizationHeader)
+	if err != nil {
+		log.Printf("[POST] %s: %s\n", triggerID, err)
+
+		ctx.Status(httpStatus)
+		return ctx.SendString(fmt.Sprintf("%s", err))
+	}
+
+	// FOUND
+	log.Printf("[POST] %s requested\n", triggerID)
+
+	// TODO: Check status + wait for mutex (if needed)
+	// TODO: Detect binary and split from the argument list
+	// TODO: Spawn command
+	// TODO: Pipe output
 
 	// cmd := exec.Command("cat")
 	// in, _ := cmd.StdinPipe()
@@ -120,9 +161,6 @@ func findTrigger(triggerID, authorizationHeader string) (*Trigger, int, error) {
 		}
 		if trigger.Token != authorizationItems[1] {
 			return nil, fiber.StatusUnauthorized, errors.Errorf("Invalid token")
-		}
-		if activeTriggers[trigger.ID] {
-			return &trigger, fiber.StatusLocked, nil
 		}
 
 		// OK
