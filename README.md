@@ -13,12 +13,12 @@ Create a config file like the following and adapt it to suit your tasks, tokens 
 ```yaml
 port: 5000
 triggers:
-  - id: my-action-prod
-    token: my-access-token-1
+  - id: my-action-1
+    token: my-token-1
     command: /home/brickpop/deploy-prod.sh --param-1
     timeout: 20 # seconds
-  - id: my-action-dev
-    token: my-access-token-2
+  - id: my-action-2
+    token: my-token-2
     command: /home/brickpop/deploy-dev.sh "CLI arguments go here"
   # ...
 ```
@@ -31,7 +31,6 @@ Start the service:
 
 ```sh
 $ webtrigger my-config.yaml
-[MAIN] Listening on port :5000
 ```
 
 ### Call a URL
@@ -43,22 +42,22 @@ Following the example config from above:
 Trigger a task by performing a `POST` request to its path with the `Authorization` header including the appropriate token.
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
+$ curl -X POST -H "Authorization: Bearer my-token-1" http://localhost:5000/my-action-1
 OK
 ```
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer my-access-token-2" http://localhost:5000/my-action-dev
+$ curl -X POST -H "Authorization: Bearer my-token-2" http://localhost:5000/my-action-2
 OK
 ```
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer bad-token" http://localhost:5000/my-action-dev
-Not found
+$ curl -X POST -H "Authorization: Bearer bad-token" http://localhost:5000/my-action-2
+Invalid token
 ```
 
 ```sh
-$ curl -X POST -H "Authorization: Bearer my-access-token-2" http://localhost:5000/does-not-exist
+$ curl -X POST -H "Authorization: Bearer my-token-2" http://localhost:5000/does-not-exist
 Not found
 ```
 
@@ -69,23 +68,23 @@ Not found
 A task can be in 4 different states:
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
-{"id":"my-action-prod","status":"unstarted"}
+$ curl -H "Authorization: Bearer my-token-1" http://localhost:5000/my-action-1
+{"id":"my-action-1","status":"unstarted"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
-{"id":"my-action-prod","status":"running"}
+$ curl -H "Authorization: Bearer my-token-1" http://localhost:5000/my-action-1
+{"id":"my-action-1","status":"running"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
-{"id":"my-action-prod","status":"done"}
+$ curl -H "Authorization: Bearer my-token-1" http://localhost:5000/my-action-1
+{"id":"my-action-1","status":"done"}
 ```
 
 ```sh
-$ curl -H "Authorization: Bearer my-access-token-1" http://localhost:5000/my-action-prod
-{"id":"my-action-prod","status":"failed"}
+$ curl -H "Authorization: Bearer my-token-1" http://localhost:5000/my-action-1
+{"id":"my-action-1","status":"failed"}
 ```
 
 ### Make it persistent
@@ -100,9 +99,9 @@ After=network.target
 [Service]
 ExecStart=/usr/local/bin/webtrigger /path/to/config.yaml
 # Required on some systems
-#WorkingDirectory=/opt/webtrigger
+#WorkingDirectory=/usr/local/bin
 Restart=always
-# Restart service after 10 seconds if node service crashes
+# Restart service after 10 seconds if the service crashes
 RestartSec=10
 # Output to syslog
 StandardOutput=syslog
@@ -175,7 +174,7 @@ $ chmod 400 server.key server.cert
 Just tell `curl` to ignore the certificate credentials and you are good to go:
 
 ```sh
-$ curl --insecure -H "Authorization: Bearer my-access-token-1" -X POST https://my-host:5000/my-action-prod
+$ curl --insecure -H "Authorization: Bearer my-token-1" -X POST https://my-host:5000/my-action-1
 OK
 ```
 
@@ -184,4 +183,5 @@ OK
 ## TO DO
 
 - [ ] Prevent blocking 3+ requests while still ongoing
-- [ ] Handle timeouts
+- [x] Handle timeouts
+- [ ] Allow TLS certificates

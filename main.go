@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/kballard/go-shellquote"
@@ -167,17 +169,17 @@ func spawnTriggerCommand(trigger *Trigger) error {
 	executableFile := commandItems[0]
 	args := commandItems[1:]
 
-	// TODO: Handle timeout
-	// https://golang.org/src/os/exec/example_test.go
-	// ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	// defer cancel()
-	//
-	// if err := exec.CommandContext(ctx, "sleep", "5").Run(); err != nil {
-	// 	// This will fail after 100 milliseconds. The 5 second sleep
-	// 	// will be interrupted.
-	// }
+	// Handle timeout (if any)
+	var cmd *exec.Cmd
+	var cancel context.CancelFunc
 
-	cmd := exec.Command(executableFile, args...)
+	if trigger.Timeout > 0 {
+		var ctx context.Context
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(trigger.Timeout)*time.Second)
+		cmd = exec.CommandContext(ctx, executableFile, args...)
+	} else {
+		cmd = exec.Command(executableFile, args...)
+	}
 
 	// Pipe output
 	cmd.Stderr = os.Stderr
@@ -189,12 +191,15 @@ func spawnTriggerCommand(trigger *Trigger) error {
 
 	err = cmd.Start()
 	go func() {
+		if cancel != nil {
+			defer cancel()
+		}
 		err := cmd.Wait()
 		if err != nil {
-			log.Printf("[RUNNER] Failed: %s ", trigger.ID)
+			log.Printf("[RUNNER] Failed: %s > %s", trigger.ID, err)
 			trigger.Status = StatusFailed
 		} else {
-			log.Printf("[RUNNER] Done: %s ", trigger.ID)
+			log.Printf("[RUNNER] Done: %s", trigger.ID)
 			trigger.Status = StatusDone
 		}
 		trigger.WaitGroup.Done()
