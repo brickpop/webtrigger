@@ -15,3 +15,6 @@ webtrigger
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+server.cert
+server.key

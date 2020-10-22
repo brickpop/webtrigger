@@ -26,10 +26,17 @@ type Trigger struct {
 	WaitGroup *sync.WaitGroup
 }
 
+// TLSConfig specified optional settings for encrypted connections
+type TLSConfig struct {
+	Certificate string `yaml:"certificate"`
+	Key         string `yaml:"key"`
+}
+
 // Config holds the trigger definitions
 type Config struct {
 	Port     int       `yaml:"port"`
 	Triggers []Trigger `yaml:"triggers"`
+	TLS      TLSConfig `yaml:"tls"`
 }
 
 // TriggerStatus contains the supported trigger statuses
@@ -113,12 +120,39 @@ func checkConfig(conf Config) error {
 		info, err := os.Stat(executableFile)
 		if os.IsNotExist(err) {
 			return errors.Errorf("[CONFIG] The script file does not exist: %s", executableFile)
+		} else if err != nil {
+			return err
 		} else if info.IsDir() {
 			return errors.Errorf("[CONFIG] The script path is a directory: %s", executableFile)
 		}
 		err = unix.Access(executableFile, unix.X_OK)
 		if err != nil {
 			return errors.Errorf("[CONFIG] The script is not executable: %s", executableFile)
+		}
+	}
+
+	// Check TLS
+	if conf.TLS.Certificate != "" && conf.TLS.Key == "" {
+		return errors.New("[CONFIG] tls.key cannot be left empty when tls.certificate is specified")
+	} else if conf.TLS.Certificate == "" && conf.TLS.Key != "" {
+		return errors.New("[CONFIG] tls.certificate cannot be left empty when tls.key is specified")
+	} else if conf.TLS.Certificate != "" && conf.TLS.Key != "" {
+		info, err := os.Stat(conf.TLS.Certificate)
+		if os.IsNotExist(err) {
+			return errors.Errorf("[CONFIG] The TLS certificate file does not exist: %s", conf.TLS.Certificate)
+		} else if err != nil {
+			return err
+		} else if info.IsDir() {
+			return errors.Errorf("[CONFIG] The TLS certificate path is a directory: %s", conf.TLS.Certificate)
+		}
+
+		info, err = os.Stat(conf.TLS.Key)
+		if os.IsNotExist(err) {
+			return errors.Errorf("[CONFIG] The TLS key file does not exist: %s", conf.TLS.Key)
+		} else if err != nil {
+			return err
+		} else if info.IsDir() {
+			return errors.Errorf("[CONFIG] The TLS key path is a directory: %s", conf.TLS.Key)
 		}
 	}
 

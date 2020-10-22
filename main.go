@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"os"
@@ -29,6 +30,7 @@ func main() {
 		log.Fatal(err)
 	}
 	config = cfg
+	fmt.Printf("[MAIN] Using %d triggers\n", len(config.Triggers))
 
 	// Service definition
 	app := fiber.New()
@@ -48,8 +50,29 @@ func main() {
 	app.Post("/:triggerID", handlespawnTriggerCommand)
 	app.Use(handleNotFound)
 
-	addr := fmt.Sprintf(":%d", config.Port)
-	log.Fatal(app.Listen(addr))
+	if config.TLS.Certificate != "" && config.TLS.Key != "" {
+		// Read TLS certificate
+		cer, err := tls.LoadX509KeyPair(config.TLS.Certificate, config.TLS.Key)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cer}}
+		addr := fmt.Sprintf(":%d", config.Port)
+
+		// Create custom listener
+		ln, err := tls.Listen("tcp", addr, tlsConfig)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		fmt.Printf("[MAIN] Listening TLS on %s\n", addr)
+		log.Fatal(app.Listener(ln))
+	} else {
+		addr := fmt.Sprintf(":%d", config.Port)
+		fmt.Printf("[MAIN] Listening HTTP on %s\n", addr)
+		log.Fatal(app.Listen(addr))
+	}
 }
 
 // handleGetStatus handles the request to run a certain trigger

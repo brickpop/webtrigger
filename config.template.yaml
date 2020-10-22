@@ -13,3 +13,6 @@ triggers:
   - id: my-action-fail
     token: my-token-4
     command: /usr/bin/false
+tls: # optional
+  certificate: ./server.cert
+  key: ./server.key
