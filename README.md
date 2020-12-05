@@ -22,8 +22,8 @@ triggers:
     command: /home/brickpop/deploy-dev.sh "CLI arguments go here"
   # ...
 tls: # optional
-  certificate: ./server.cert
-  key: ./server.key
+  certificate: ./fullchain.pem
+  key: ./privkey.pem
 ```
 
 Create the scripts for your triggers and make sure that they are executable.
