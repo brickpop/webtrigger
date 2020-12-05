@@ -14,5 +14,5 @@ triggers:
     token: my-token-4
     command: /usr/bin/false
 tls: # optional
-  certificate: ./server.cert
-  key: ./server.key
+  certificate: ./fullchain.pem
+  key: ./privkey.pem
