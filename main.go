@@ -43,7 +43,7 @@ func main() {
 
 	app.Options("*", func(ctx *fiber.Ctx) error {
 		ctx.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		return ctx.Next()
+		return ctx.SendStatus(fiber.StatusOK)
 	})
 
 	app.Get("/:triggerID", handleGetStatus)
