@@ -185,6 +185,6 @@ OK
 
 ## TO DO
 
-- [ ] Prevent blocking 3+ requests while still ongoing
 - [x] Handle timeouts
-- [ ] Allow TLS certificates
+- [x] Allow TLS certificates
+- [ ] Prevent blocking 3+ requests while still ongoing
