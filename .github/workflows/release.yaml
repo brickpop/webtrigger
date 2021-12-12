@@ -16,12 +16,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v2
         with:
-          go-version: '1.15.3'
+          go-version: '1.17.5'
       
       - name: Build project
         run: |
-          go build -o dist/webtrigger 
-          zip webtrigger.zip dist/webtrigger
+          go build -o dist/webtrigger-x86_64
+          GOARCH=arm64 go build -o dist/webtrigger-arm64
+          zip webtrigger.zip dist/webtrigger*
 
       - name: Create Release
         id: create_release
@@ -43,3 +44,4 @@ jobs:
           asset_path: ./webtrigger.zip
           asset_name: webtrigger.zip
           asset_content_type: application/zip
+
